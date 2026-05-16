@@ -32,7 +32,7 @@ def summarize_algo_dataset(algo: str, dataset: str) -> dict:
     for seed_dir in seed_dirs:
         acc = parse_metric_file(os.path.join(seed_dir, "centralized_accuracy.txt"))
         loss = parse_metric_file(os.path.join(seed_dir, "centralized_loss.txt"))
-        leak = parse_metric_file(os.path.join(seed_dir, "privacy_leakage_iwqos.txt"))
+        leak = parse_metric_file(os.path.join(seed_dir, "privacy_leakage.txt"))
         if acc.size > 0:
             accs.append(acc[-1])
         if loss.size > 0:
@@ -56,8 +56,8 @@ def summarize_algo_dataset(algo: str, dataset: str) -> dict:
         "accuracy_std": acc_s,
         "loss_last15_mean": loss_m,
         "loss_last15_std": loss_s,
-        "leakage_iwqos_mean": leak_m,
-        "leakage_iwqos_std": leak_s,
+        "leakage_mean": leak_m,
+        "leakage_std": leak_s,
     }
 
 
@@ -77,7 +77,7 @@ def main():
                 f"{row['algo']},{row['dataset']},{row['num_seeds']},"
                 f"{row['accuracy_mean']:.6f},{row['accuracy_std']:.6f},"
                 f"{row['loss_last15_mean']:.6f},{row['loss_last15_std']:.6f},"
-                f"{row['leakage_iwqos_mean']:.6f},{row['leakage_iwqos_std']:.6f}"
+                f"{row['leakage_mean']:.6f},{row['leakage_std']:.6f}"
             )
 
 

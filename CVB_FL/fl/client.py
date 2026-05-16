@@ -8,7 +8,6 @@ import torch.optim as optim
 from flwr.common import NDArrays, Scalar
 
 from CVB_FL.config import CVB_BETA, DEVICE
-from metric.iwqos_leakage import estimate_mi_mmse
 from metric.metrics import compute_distortion, compute_privacy_leakage
 
 
@@ -63,15 +62,12 @@ class CVBPrivacyClient(fl.client.NumPyClient):
 
         privacy_leakage = float(compute_privacy_leakage(protected_params, flat_params))
         distortion = float(compute_distortion(flat_params, protected_params))
-        privacy_leakage_iwqos = float(estimate_mi_mmse(flat_params, protected_params))
 
         return updated_parameters, total_samples, {
             "loss": float(total_loss / total_samples),
             "ce_loss": float(total_ce / total_samples),
             "kl_loss": float(total_kl / total_samples),
             "accuracy": float(total_correct / total_samples),
-            "privacy_leakage": privacy_leakage_iwqos,
-            "privacy_leakage_iwqos": privacy_leakage_iwqos,
-            "privacy_leakage_legacy": privacy_leakage,
+            "privacy_leakage": privacy_leakage,
             "distortion": distortion,
         }

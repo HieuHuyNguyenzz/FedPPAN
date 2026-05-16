@@ -136,8 +136,8 @@ CVB_FL va DCS2_FL da duoc dong bo protocol:
 - Fashion-MNIST: `NUM_CLIENTS=100`, `CLIENTS_PER_ROUND=10`, `NUM_ROUNDS=200`, `LR=0.01`
 - CIFAR-10: `NUM_CLIENTS=50`, `CLIENTS_PER_ROUND=10`, `NUM_ROUNDS=500`, `LR=0.03`
 
-Metric leakage chinh cho baseline:
-- `privacy_leakage_iwqos` (MMSE-based MI lower bound)
+Metric leakage:
+- `privacy_leakage` (theo metric leakage cua code goc repo)
 
 ## 5) Tong hop ket qua baseline (mean +- std)
 

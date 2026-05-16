@@ -83,8 +83,8 @@ class FedAvgDCS2(fl.server.strategy.FedAvg):
 
         save_metric_to_txt(
             self.results_dir,
-            "privacy_leakage_iwqos",
-            float(np.mean([r.metrics.get("privacy_leakage_iwqos", 0.0) for _, r in results])),
+            "privacy_leakage",
+            float(np.mean([r.metrics.get("privacy_leakage", 0.0) for _, r in results])),
             server_round,
         )
         save_metric_to_txt(

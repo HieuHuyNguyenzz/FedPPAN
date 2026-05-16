@@ -81,9 +81,9 @@ class FedAvgCVB(fl.server.strategy.FedAvg):
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
 
-        avg_privacy_leakage = float(np.mean([r.metrics.get("privacy_leakage_iwqos", 0.0) for _, r in results]))
+        avg_privacy_leakage = float(np.mean([r.metrics.get("privacy_leakage", 0.0) for _, r in results]))
         avg_distortion = float(np.mean([r.metrics.get("distortion", 0.0) for _, r in results]))
-        save_metric_to_txt(self.results_dir, "privacy_leakage_iwqos", avg_privacy_leakage, server_round)
+        save_metric_to_txt(self.results_dir, "privacy_leakage", avg_privacy_leakage, server_round)
         save_metric_to_txt(self.results_dir, "distortion", avg_distortion, server_round)
 
         return ndarrays_to_parameters(ndarrays), metrics_aggregated

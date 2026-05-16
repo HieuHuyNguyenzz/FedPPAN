@@ -2,7 +2,7 @@ import os
 import torch
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-LEAKAGE_METRIC_MODE = "iwqos"
+LEAKAGE_METRIC_MODE = "legacy"
 NUM_REPEATS = 3
 
 # CVB parameters (paper defaults for CNN)

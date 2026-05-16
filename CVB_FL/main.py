@@ -23,7 +23,7 @@ from function_strategy.function_stategy import (
     aggregate_evaluate_metrics,
     aggregate_fit_metrics,
 )
-from models.cvb import CVBNet, CVBResNet18
+from models.cvb import CVBNet, CVBResNet50
 from preprocessing.data_handling import (
     get_dataloader,
     get_dataloader_cifar10,
@@ -72,7 +72,7 @@ def get_client_fn(cfg: dict, federated_data: dict):
             model = CVBNet(cvb_scale=CVB_SCALE, cvb_kernel_size=CVB_KERNEL_SIZE)
         else:
             train_loader = get_dataloader_cifar10(federated_data[key], batch_size=cfg["BATCH_SIZE"])
-            model = CVBResNet18(num_classes=cfg["NUM_CLASSES"], cvb_scale=CVB_SCALE, cvb_kernel_size=CVB_KERNEL_SIZE)
+            model = CVBResNet50(num_classes=cfg["NUM_CLASSES"], cvb_scale=CVB_SCALE, cvb_kernel_size=CVB_KERNEL_SIZE)
         return CVBPrivacyClient(model, train_loader, learning_rate=cfg["LEARNING_RATE"]).to_client()
 
     return client_fn
@@ -86,7 +86,7 @@ def get_evaluate_fn(cfg: dict, testset):
         if cfg["DATASET"] == "fashion":
             model = CVBNet(cvb_scale=CVB_SCALE, cvb_kernel_size=CVB_KERNEL_SIZE).to(device)
         else:
-            model = CVBResNet18(num_classes=cfg["NUM_CLASSES"], cvb_scale=CVB_SCALE, cvb_kernel_size=CVB_KERNEL_SIZE).to(device)
+            model = CVBResNet50(num_classes=cfg["NUM_CLASSES"], cvb_scale=CVB_SCALE, cvb_kernel_size=CVB_KERNEL_SIZE).to(device)
         model.eval()
 
         model_keys = list(model.state_dict().keys())

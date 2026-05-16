@@ -17,7 +17,6 @@ from DCS2_FL.config import (
     DCS2_SYNTH_STEPS,
     DEVICE,
 )
-from metric.iwqos_leakage import estimate_mi_mmse
 from metric.metrics import compute_distortion, compute_privacy_leakage
 from models.dcs2 import DCS2Defender
 
@@ -88,16 +87,13 @@ class DCS2PrivacyClient(fl.client.NumPyClient):
         updated_parameters = self.get_parameters()
         flat_params = np.concatenate([p.flatten() for p in updated_parameters])
         jitter = np.random.normal(0.0, 1e-6, size=flat_params.shape)
-        privacy_leakage_legacy = float(compute_privacy_leakage(flat_params + jitter, flat_params))
+        privacy_leakage = float(compute_privacy_leakage(flat_params + jitter, flat_params))
         distortion = float(compute_distortion(flat_params, flat_params + jitter))
-        privacy_leakage_iwqos = float(estimate_mi_mmse(flat_params, flat_params + jitter))
 
         return updated_parameters, total_samples, {
             "loss": float(total_loss / max(1, total_samples)),
             "accuracy": float(total_correct / max(1, total_samples)),
-            "privacy_leakage": privacy_leakage_iwqos,
-            "privacy_leakage_iwqos": privacy_leakage_iwqos,
-            "privacy_leakage_legacy": privacy_leakage_legacy,
+            "privacy_leakage": privacy_leakage,
             "distortion": distortion,
             "conceal_obj": float(conceal_obj_total / max(1, num_batches)),
             "grad_cosine": float(grad_cos_total / max(1, num_batches)),

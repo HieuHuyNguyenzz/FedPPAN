@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet18
+from torchvision.models import resnet50
 
 
 class ConvolutionalVariationalBottleneck(nn.Module):
@@ -64,14 +64,13 @@ class CVBNet(nn.Module):
         return self.cvb.last_kl
 
 
-class CVBResNet18(nn.Module):
-    """ResNet18 variant with early CVB insertion for CIFAR-like inputs."""
+class CVBResNet50(nn.Module):
+    """ResNet50 variant with early CVB insertion for CIFAR-like inputs."""
 
     def __init__(self, num_classes: int = 10, cvb_scale: float = 0.5, cvb_kernel_size: int = 5):
         super().__init__()
-        self.backbone = resnet18(weights=None)
-        self.backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.backbone.maxpool = nn.Identity()
+        self.backbone = resnet50(weights=None)
+        self.backbone.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.cvb = ConvolutionalVariationalBottleneck(
             in_channels=64, scale=cvb_scale, kernel_size=cvb_kernel_size
         )
@@ -82,6 +81,7 @@ class CVBResNet18(nn.Module):
         x = self.backbone.bn1(x)
         x = self.backbone.relu(x)
         x = self.cvb(x)
+        x = self.backbone.maxpool(x)
         x = self.backbone.layer1(x)
         x = self.backbone.layer2(x)
         x = self.backbone.layer3(x)
