@@ -95,7 +95,8 @@ Thong so chinh:
 ### 4.4 CVB_FL (pipeline moi)
 
 ```bash
-python CVB_FL/main.py
+python CVB_FL/main.py --dataset fashion --seed 42
+python CVB_FL/main.py --dataset cifar --seed 42
 ```
 
 Config tai:
@@ -108,12 +109,13 @@ Thong so CVB mac dinh theo paper:
 - `CVB_BETA=0.1`
 
 Ket qua:
-- `results/cvb_fl/`
+- `results/cvb_fl/<dataset>/seed_<seed>/`
 
 ### 4.5 DCS2_FL (pipeline moi)
 
 ```bash
-python DCS2_FL/main.py
+python DCS2_FL/main.py --dataset fashion --seed 42
+python DCS2_FL/main.py --dataset cifar --seed 42
 ```
 
 Config tai:
@@ -126,17 +128,37 @@ Thong so DCS2 chinh:
 - `DCS2_INIT_MODE` (`random`)
 
 Ket qua:
-- `results/dcs2_fl/`
+- `results/dcs2_fl/<dataset>/seed_<seed>/`
 
-## 5) Chay nhanh de smoke test
+### 4.6 Protocol baseline IWQoS
 
-Truoc khi chay full (300 rounds), nen giam:
-- `NUM_ROUNDS = 1` hoac `2`
-- `NUM_CLIENTS = 5` hoac `10`
+CVB_FL va DCS2_FL da duoc dong bo protocol:
+- Fashion-MNIST: `NUM_CLIENTS=100`, `CLIENTS_PER_ROUND=10`, `NUM_ROUNDS=200`, `LR=0.01`
+- CIFAR-10: `NUM_CLIENTS=50`, `CLIENTS_PER_ROUND=10`, `NUM_ROUNDS=500`, `LR=0.03`
 
-Ap dung ngay trong file `config.py` cua pipeline tuong ung.
+Metric leakage chinh cho baseline:
+- `privacy_leakage_iwqos` (MMSE-based MI lower bound)
 
-## 6) Kiem tra va debug co ban
+## 5) Tong hop ket qua baseline (mean +- std)
+
+Sau khi chay nhieu seed, tong hop bang:
+
+```bash
+python tools/summarize_baselines.py --algos cvb_fl dcs2_fl --datasets fashion cifar
+```
+
+## 6) Chay nhanh de smoke test
+
+Khong sua config. Dung override:
+- `--num-rounds 1` hoac `2`
+
+Vi du:
+```bash
+python CVB_FL/main.py --dataset fashion --seed 1 --num-rounds 1
+python DCS2_FL/main.py --dataset cifar --seed 1 --num-rounds 1
+```
+
+## 7) Kiem tra va debug co ban
 
 ### 6.1 Loi import/module
 - Dam bao dang chay tai thu muc goc repo.
@@ -151,7 +173,7 @@ Ap dung ngay trong file `config.py` cua pipeline tuong ung.
 - Giam `BATCH_SIZE`
 - Giam `num_gpus` trong `start_simulation(...)` neu can
 
-## 7) Thu tu de xac nhan repo hoat dong
+## 8) Thu tu de xac nhan repo hoat dong
 
 Nen chay theo thu tu:
 1. `CVB_FL/main.py` voi 1-2 rounds (xac nhan pipeline moi)

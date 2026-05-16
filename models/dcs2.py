@@ -57,6 +57,7 @@ class DCS2Defender:
         synth_steps: int = 15,
         synth_lr: float = 0.1,
         init_mode: str = "random",
+        num_classes: int = 10,
     ):
         self.model = model
         self.criterion = criterion
@@ -67,6 +68,7 @@ class DCS2Defender:
         self.synth_steps = synth_steps
         self.synth_lr = synth_lr
         self.init_mode = init_mode
+        self.num_classes = num_classes
 
     def _init_concealed(self, xs: torch.Tensor) -> torch.Tensor:
         if self.init_mode == "noise" or self.init_mode == "random":
@@ -124,7 +126,7 @@ class DCS2Defender:
         for i in range(batch_size):
             xs = images[i : i + 1]
             ys = labels[i : i + 1]
-            y0 = torch.randint(low=0, high=10, size=(1,), device=labels.device)
+            y0 = torch.randint(low=0, high=self.num_classes, size=(1,), device=labels.device)
 
             xc, obj_val, cos_val = self.synthesize_concealed_sample(xs, ys, y0)
             obj_values.append(obj_val)

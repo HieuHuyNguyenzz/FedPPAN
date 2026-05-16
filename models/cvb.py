@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.models import resnet18
 
 
 class ConvolutionalVariationalBottleneck(nn.Module):
@@ -57,6 +58,37 @@ class CVBNet(nn.Module):
         x = x.view(-1, 64 * 4 * 4)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
+        return x
+
+    def get_kl_loss(self) -> torch.Tensor:
+        return self.cvb.last_kl
+
+
+class CVBResNet18(nn.Module):
+    """ResNet18 variant with early CVB insertion for CIFAR-like inputs."""
+
+    def __init__(self, num_classes: int = 10, cvb_scale: float = 0.5, cvb_kernel_size: int = 5):
+        super().__init__()
+        self.backbone = resnet18(weights=None)
+        self.backbone.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.backbone.maxpool = nn.Identity()
+        self.cvb = ConvolutionalVariationalBottleneck(
+            in_channels=64, scale=cvb_scale, kernel_size=cvb_kernel_size
+        )
+        self.backbone.fc = nn.Linear(self.backbone.fc.in_features, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.backbone.conv1(x)
+        x = self.backbone.bn1(x)
+        x = self.backbone.relu(x)
+        x = self.cvb(x)
+        x = self.backbone.layer1(x)
+        x = self.backbone.layer2(x)
+        x = self.backbone.layer3(x)
+        x = self.backbone.layer4(x)
+        x = self.backbone.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.backbone.fc(x)
         return x
 
     def get_kl_loss(self) -> torch.Tensor:

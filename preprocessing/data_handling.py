@@ -15,6 +15,15 @@ def split_mnist_dirichlet_flwr(num_clients=100, alpha=0.5, seed=42):
     federated_data = {f"client_{i}": fds.load_partition(i) for i in range(num_clients)}
     return fds, federated_data
 
+
+def split_cifar10_dirichlet_flwr(num_clients=50, alpha=0.5, seed=42):
+    partitioner = DirichletPartitioner(
+        num_partitions=num_clients, partition_by="label", alpha=alpha, seed=seed
+    )
+    fds = FederatedDataset(dataset="cifar10", partitioners={"train": partitioner})
+    federated_data = {f"client_{i}": fds.load_partition(i) for i in range(num_clients)}
+    return fds, federated_data
+
 def get_dataloader(client_data, batch_size=16):
     transform = transforms.Compose([
         transforms.ToTensor(),

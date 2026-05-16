@@ -1,6 +1,10 @@
+import argparse
 import os
+import random
+import sys
 
 import flwr as fl
+import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.datasets as datasets
@@ -8,41 +12,86 @@ import torchvision.transforms as transforms
 from flwr.common import Context
 from torch.utils.data import DataLoader
 
-from DCS2_FL.config import BATCH_SIZE, NUM_CLIENTS, NUM_ROUNDS, RESULTS_DIR
+if __package__ is None or __package__ == "":
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from DCS2_FL.config import get_experiment_config
 from DCS2_FL.fl.client import DCS2PrivacyClient
 from DCS2_FL.fl.strategy import FedAvgDCS2
 from clientmanager.manager import SimpleClientManager
 from function_strategy.function_stategy import (
     aggregate_evaluate_metrics,
     aggregate_fit_metrics,
-    evaluate_config,
-    fit_config,
 )
-from models.mnist_model import Net
-from preprocessing.data_handling import get_dataloader, split_mnist_dirichlet_flwr
+from models.mnist_model import Net, ResNet50
+from preprocessing.data_handling import (
+    get_dataloader,
+    get_dataloader_cifar10,
+    split_cifar10_dirichlet_flwr,
+    split_mnist_dirichlet_flwr,
+)
 
-fds, federated_data = split_mnist_dirichlet_flwr(num_clients=NUM_CLIENTS)
+
+def set_global_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
-def get_client_fn():
+def assert_protocol(cfg: dict, check_rounds: bool = True) -> None:
+    expected = {
+        "fashion": {"NUM_CLIENTS": 100, "CLIENTS_PER_ROUND": 10, "NUM_ROUNDS": 200, "LEARNING_RATE": 0.01},
+        "cifar": {"NUM_CLIENTS": 50, "CLIENTS_PER_ROUND": 10, "NUM_ROUNDS": 500, "LEARNING_RATE": 0.03},
+    }[cfg["DATASET"]]
+    for key, value in expected.items():
+        if key == "NUM_ROUNDS" and not check_rounds:
+            continue
+        if cfg[key] != value:
+            raise ValueError(f"Protocol mismatch for {cfg['DATASET']}: {key}={cfg[key]} != {value}")
+    expected_fraction = cfg["CLIENTS_PER_ROUND"] / cfg["NUM_CLIENTS"]
+    if abs(cfg["FRACTION_FIT"] - expected_fraction) > 1e-9:
+        raise ValueError("FRACTION_FIT is not consistent with CLIENTS_PER_ROUND / NUM_CLIENTS")
+
+
+def build_dataset_partition(cfg: dict):
+    if cfg["DATASET"] == "fashion":
+        return split_mnist_dirichlet_flwr(num_clients=cfg["NUM_CLIENTS"], alpha=0.5, seed=cfg["SEED"])
+    return split_cifar10_dirichlet_flwr(num_clients=cfg["NUM_CLIENTS"], alpha=0.5, seed=cfg["SEED"])
+
+
+def get_client_fn(cfg: dict, federated_data: dict):
     def client_fn(context: Context) -> fl.client.Client:
         partition_id = context.node_config["partition-id"]
         key = f"client_{partition_id}"
         if key not in federated_data:
             raise ValueError(f"Client ID {partition_id} does not exist in federated_data")
-        train_loader = get_dataloader(federated_data[key], batch_size=BATCH_SIZE)
-        model = Net()
-        return DCS2PrivacyClient(model, train_loader).to_client()
+        if cfg["DATASET"] == "fashion":
+            train_loader = get_dataloader(federated_data[key], batch_size=cfg["BATCH_SIZE"])
+            model = Net()
+        else:
+            train_loader = get_dataloader_cifar10(federated_data[key], batch_size=cfg["BATCH_SIZE"])
+            model = ResNet50(num_channel=3, num_classes=cfg["NUM_CLASSES"])
+        return DCS2PrivacyClient(
+            model,
+            train_loader,
+            learning_rate=cfg["LEARNING_RATE"],
+            num_classes=cfg["NUM_CLASSES"],
+        ).to_client()
 
     return client_fn
 
 
-def get_evaluate_fn(testset):
+def get_evaluate_fn(cfg: dict, testset):
     testloader = DataLoader(testset, batch_size=64, shuffle=False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def evaluate(server_round: int, parameters: fl.common.NDArrays, config: dict):
-        model = Net().to(device)
+        if cfg["DATASET"] == "fashion":
+            model = Net().to(device)
+        else:
+            model = ResNet50(num_channel=3, num_classes=cfg["NUM_CLASSES"]).to(device)
         model.eval()
 
         model_keys = list(model.state_dict().keys())
@@ -68,41 +117,84 @@ def get_evaluate_fn(testset):
 
         accuracy = correct / total if total else 0.0
         avg_loss = total_loss / total if total else 0.0
-        with open(os.path.join(RESULTS_DIR, "centralized_accuracy.txt"), "a", encoding="utf-8") as f:
+        with open(os.path.join(cfg["RESULTS_DIR"], "centralized_accuracy.txt"), "a", encoding="utf-8") as f:
             f.write(f"round={server_round},value={accuracy:.8f}\n")
-        with open(os.path.join(RESULTS_DIR, "centralized_loss.txt"), "a", encoding="utf-8") as f:
+        with open(os.path.join(cfg["RESULTS_DIR"], "centralized_loss.txt"), "a", encoding="utf-8") as f:
             f.write(f"round={server_round},value={avg_loss:.8f}\n")
         return avg_loss, {"accuracy": accuracy}
 
     return evaluate
 
 
-def main():
+def build_centralized_testset(dataset: str):
+    if dataset == "fashion":
+        transform = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        )
+        return datasets.FashionMNIST(root="./data", train=False, download=True, transform=transform)
     transform = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
-    centralized_testset = datasets.FashionMNIST(
-        root="./data", train=False, download=True, transform=transform
-    )
+    return datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run DCS2_FL with IWQoS baseline protocol.")
+    parser.add_argument("--dataset", choices=["fashion", "cifar"], default="fashion")
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num-rounds", type=int, default=None)
+    return parser.parse_args()
+
+
+def make_fit_config(cfg: dict):
+    def _fit_config(server_round: int) -> dict:
+        return {
+            "learning_rate": cfg["LEARNING_RATE"],
+            "batch_size": cfg["BATCH_SIZE"],
+            "round": server_round,
+        }
+
+    return _fit_config
+
+
+def make_evaluate_config(cfg: dict):
+    def _evaluate_config(server_round: int) -> dict:
+        return {"batch_size": cfg["BATCH_SIZE"], "round": server_round}
+
+    return _evaluate_config
+
+
+def main():
+    args = parse_args()
+    cfg = get_experiment_config(args.dataset, args.seed)
+    assert_protocol(cfg, check_rounds=True)
+    if args.num_rounds is not None:
+        cfg["NUM_ROUNDS"] = args.num_rounds
+        assert_protocol(cfg, check_rounds=False)
+    set_global_seed(cfg["SEED"])
+
+    _, federated_data = build_dataset_partition(cfg)
+    centralized_testset = build_centralized_testset(cfg["DATASET"])
 
     client_manager = SimpleClientManager()
     strategy = FedAvgDCS2(
-        fraction_fit=0.1,
-        fraction_evaluate=0.1,
-        min_fit_clients=max(1, int(0.1 * NUM_CLIENTS)),
-        min_evaluate_clients=max(1, int(0.1 * NUM_CLIENTS)),
-        min_available_clients=NUM_CLIENTS,
-        on_fit_config_fn=fit_config,
-        on_evaluate_config_fn=evaluate_config,
+        fraction_fit=cfg["FRACTION_FIT"],
+        fraction_evaluate=cfg["FRACTION_EVALUATE"],
+        min_fit_clients=cfg["CLIENTS_PER_ROUND"],
+        min_evaluate_clients=cfg["CLIENTS_PER_ROUND"],
+        min_available_clients=cfg["NUM_CLIENTS"],
+        on_fit_config_fn=make_fit_config(cfg),
+        on_evaluate_config_fn=make_evaluate_config(cfg),
         fit_metrics_aggregation_fn=aggregate_fit_metrics,
         evaluate_metrics_aggregation_fn=aggregate_evaluate_metrics,
-        evaluate_fn=get_evaluate_fn(centralized_testset),
+        evaluate_fn=get_evaluate_fn(cfg, centralized_testset),
+        results_dir=cfg["RESULTS_DIR"],
     )
 
     fl.simulation.start_simulation(
-        client_fn=get_client_fn(),
-        num_clients=NUM_CLIENTS,
-        config=fl.server.ServerConfig(num_rounds=NUM_ROUNDS),
+        client_fn=get_client_fn(cfg, federated_data),
+        num_clients=cfg["NUM_CLIENTS"],
+        config=fl.server.ServerConfig(num_rounds=cfg["NUM_ROUNDS"]),
         strategy=strategy,
         client_manager=client_manager,
         client_resources={"num_cpus": 1, "num_gpus": 0.1},

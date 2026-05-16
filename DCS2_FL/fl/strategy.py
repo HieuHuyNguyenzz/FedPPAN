@@ -17,11 +17,8 @@ from flwr.common import (
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 
-from DCS2_FL.config import RESULTS_DIR
-
-
-def save_metric_to_txt(metric_name: str, value: float, server_round: int) -> None:
-    path = os.path.join(RESULTS_DIR, f"{metric_name}.txt")
+def save_metric_to_txt(results_dir: str, metric_name: str, value: float, server_round: int) -> None:
+    path = os.path.join(results_dir, f"{metric_name}.txt")
     with open(path, "a", encoding="utf-8") as f:
         f.write(f"round={server_round},value={value:.8f}\n")
 
@@ -43,6 +40,7 @@ class FedAvgDCS2(fl.server.strategy.FedAvg):
         initial_parameters: Optional[Parameters] = None,
         fit_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
         evaluate_metrics_aggregation_fn: Optional[MetricsAggregationFn] = None,
+        results_dir: str = "results/dcs2_fl",
     ) -> None:
         super().__init__(
             fraction_fit=fraction_fit,
@@ -58,6 +56,7 @@ class FedAvgDCS2(fl.server.strategy.FedAvg):
             fit_metrics_aggregation_fn=fit_metrics_aggregation_fn,
             evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation_fn,
         )
+        self.results_dir = results_dir
 
     def aggregate_fit(
         self,
@@ -83,21 +82,25 @@ class FedAvgDCS2(fl.server.strategy.FedAvg):
             metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
 
         save_metric_to_txt(
-            "privacy_leakage",
-            float(np.mean([r.metrics.get("privacy_leakage", 0.0) for _, r in results])),
+            self.results_dir,
+            "privacy_leakage_iwqos",
+            float(np.mean([r.metrics.get("privacy_leakage_iwqos", 0.0) for _, r in results])),
             server_round,
         )
         save_metric_to_txt(
+            self.results_dir,
             "distortion",
             float(np.mean([r.metrics.get("distortion", 0.0) for _, r in results])),
             server_round,
         )
         save_metric_to_txt(
+            self.results_dir,
             "conceal_obj",
             float(np.mean([r.metrics.get("conceal_obj", 0.0) for _, r in results])),
             server_round,
         )
         save_metric_to_txt(
+            self.results_dir,
             "proj_applied_ratio",
             float(np.mean([r.metrics.get("proj_applied_ratio", 0.0) for _, r in results])),
             server_round,
